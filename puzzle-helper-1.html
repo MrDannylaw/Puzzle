@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e0d0b">
+<title>Jigsaw Helper</title>
+<style>
+  :root {
+    --bg: #0e0d0b;
+    --panel: #1a1815;
+    --line: #2a2622;
+    --ink: #f4ead8;
+    --dim: #8a7e6a;
+    --accent: #e8a04a;
+    --accent-soft: #c97e2c;
+    --green: #8fbf6c;
+    --blue: #6caee8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  header {
+    flex: 0 0 auto;
+    padding: 10px 14px 8px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 {
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+    font-style: italic;
+    flex: 0 0 auto;
+  }
+  header h1 span { color: var(--accent); }
+  header .status {
+    font-size: 10px;
+    color: var(--dim);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.05em;
+    text-align: right;
+    line-height: 1.3;
+  }
+  header .status .ok { color: var(--green); }
+  header .status .warn { color: var(--accent); }
+  header .status .info { color: var(--blue); }
+
+  main {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
+    min-height: 0;
+  }
+  .panel {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .panel.large { flex: 1 1 65%; }
+  .panel.small { flex: 1 1 35%; }
+  .panel-label {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: rgba(0,0,0,0.55);
+    padding: 4px 8px;
+    border-radius: 999px;
+    z-index: 5;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    pointer-events: none;
+  }
+  .panel-action {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    z-index: 5;
+    background: rgba(0,0,0,0.55);
+    color: var(--ink);
+    border: none;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    cursor: pointer;
+  }
+  .panel-action:active { background: var(--accent-soft); }
+
+  #camStage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+  }
+  #camVideo, #camOverlay, #camFrozen {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  #camFrozen { display: none; z-index: 1; }
+  #camOverlay { z-index: 2; pointer-events: none; }
+
+  .badge-stack {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    z-index: 4;
+    pointer-events: none;
+    flex-wrap: wrap;
+    max-width: calc(100% - 20px);
+  }
+  .piece-badge {
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+  }
+  .piece-badge .swatch-mini {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: #555;
+  }
+  .piece-badge.type {
+    background: rgba(232,160,74,0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .piece-badge.track {
+    background: rgba(108, 174, 232, 0.15);
+    border-color: var(--blue);
+    color: var(--blue);
+  }
+  .piece-badge.track.lost {
+    background: rgba(217, 100, 70, 0.15);
+    border-color: #d96446;
+    color: #e9947b;
+  }
+  .piece-badge.hidden { display: none; }
+
+  #refStage {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    touch-action: none;
+    position: relative;
+    background: radial-gradient(circle at 30% 20%, #1f1c18 0%, #100f0d 70%);
+  }
+  #refImg, #refOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  #refImg { display: none; }
+  #refOverlay { display: none; }
+
+  .empty-ref {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    padding: 20px;
+    color: var(--dim);
+  }
+  .empty-ref svg { width: 48px; height: 48px; opacity: 0.5; }
+  .empty-ref p { font-size: 13px; max-width: 240px; line-height: 1.4; }
+  .empty-ref .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .empty-ref button {
+    background: var(--accent);
+    color: #1a1410;
+    border: none;
+    border-radius: 999px;
+    padding: 9px 16px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .empty-ref button.ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  .empty-ref button:active { transform: scale(0.97); }
+
+  .cv-splash, .index-splash {
+    position: absolute;
+    inset: 0;
+    background: rgba(14, 13, 11, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--dim);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .cv-splash .spinner, .index-splash .spinner {
+    width: 28px; height: 28px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  .cv-splash.gone, .index-splash.gone {
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .index-splash { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .controls {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px 10px;
+    border-top: 1px solid var(--line);
+    align-items: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .controls::-webkit-scrollbar { display: none; }
+  .ctrl {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 8px 10px;
+    min-width: 64px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .ctrl svg { width: 22px; height: 22px; }
+  .ctrl.active {
+    background: var(--accent);
+    color: #1a1410;
+    border-color: var(--accent);
+  }
+  .ctrl.track-active {
+    background: var(--blue);
+    color: #0e1620;
+    border-color: var(--blue);
+  }
+  .ctrl:active { transform: scale(0.96); }
+  .ctrl[disabled] { opacity: 0.35; pointer-events: none; }
+  .slider-group {
+    flex: 1 1 auto;
+    min-width: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px;
+  }
+  .slider-group label {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    display: flex;
+    justify-content: space-between;
+  }
+  .slider-group label span { color: var(--accent); }
+  .slider-group input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
+    outline: none;
+  }
+  .slider-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .slider-group input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom) + 80px);
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(20, 16, 10, 0.95);
+    color: var(--ink);
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    border: 1px solid var(--accent-soft);
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    z-index: 50;
+    max-width: 80%;
+    text-align: center;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (orientation: landscape) and (min-height: 400px) {
+    main { flex-direction: row; }
+    .panel.large, .panel.small { flex: 1 1 50%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Jigsaw <span>Helper</span></h1>
+  <div class="status" id="status">
+    <div id="cvStatus" class="warn">loading vision…</div>
+    <div id="camStatus" class="warn">awaiting camera</div>
+  </div>
+</header>
+
+<main>
+  <div class="panel large" id="camPanel">
+    <div class="panel-label">Live Camera</div>
+    <button class="panel-action" id="swapBtn" style="display:none">Swap</button>
+    <div id="camStage">
+      <video id="camVideo" autoplay muted playsinline></video>
+      <canvas id="camFrozen"></canvas>
+      <canvas id="camOverlay"></canvas>
+      <div class="badge-stack">
+        <div class="piece-badge hidden" id="colorBadge">
+          <div class="swatch-mini" id="swatchMini"></div>
+          <span id="colorText">—</span>
+        </div>
+        <div class="piece-badge type hidden" id="typeBadge">—</div>
+        <div class="piece-badge track hidden" id="trackBadge">—</div>
+      </div>
+      <div class="cv-splash" id="cvSplash">
+        <div class="spinner"></div>
+        <div>Loading vision engine</div>
+      </div>
+      <div class="index-splash" id="indexSplash">
+        <div class="spinner"></div>
+        <div>Indexing reference image…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel small" id="refPanel">
+    <div class="panel-label">Reference</div>
+    <div id="refStage">
+      <img id="refImg" alt="puzzle reference">
+      <canvas id="refOverlay"></canvas>
+      <div class="empty-ref" id="emptyRef">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="5" width="18" height="14" rx="2"/>
+          <path d="M3 15l5-5 4 4 3-3 6 6"/>
+          <circle cx="9" cy="10" r="1.5" fill="currentColor"/>
+        </svg>
+        <p>Add the puzzle box image to begin.</p>
+        <div class="row">
+          <button id="uploadBtn">Upload</button>
+          <button class="ghost" id="snapRefBtn">Use camera</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="controls">
+  <button class="ctrl track-active" id="trackBtn" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M3 3h4M3 3v4M21 3h-4M21 3v4M3 21h4M3 21v-4M21 21h-4M21 21v-4"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+    Track
+  </button>
+  <button class="ctrl active" id="liveBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M2 12c4-7 16-7 20 0M2 12c4 7 16 7 20 0"/>
+    </svg>
+    Match
+  </button>
+  <div class="slider-group" id="rangeGroup">
+    <label><span id="sliderLbl">Range</span> <span id="sliderVal">40</span></label>
+    <input type="range" id="slider" min="10" max="90" value="40">
+  </div>
+  <button class="ctrl" id="freezeBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/>
+    </svg>
+    <span id="freezeLbl">Freeze</span>
+  </button>
+  <button class="ctrl" id="clearBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M5 6h14l-1 14H6L5 6zM9 6V4h6v2"/>
+    </svg>
+    Clear
+  </button>
+  <button class="ctrl" id="reUploadBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/>
+    </svg>
+    New ref
+  </button>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+<input type="file" id="snapInput" accept="image/*" capture="environment" style="display:none">
+<div class="toast" id="toast"></div>
+
+<script>
+  var Module = {
+    onRuntimeInitialized: function () {
+      window.dispatchEvent(new Event('opencv-ready'));
+    }
+  };
+</script>
+<script async src="https://docs.opencv.org/4.10.0/opencv.js"
+        onload="window.dispatchEvent(new Event('opencv-script-loaded'))"
+        onerror="window.dispatchEvent(new Event('opencv-failed'))"></script>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const camVideo = $('camVideo'), camOverlay = $('camOverlay'), camFrozen = $('camFrozen');
+  const refImg = $('refImg'), refOverlay = $('refOverlay'), refStage = $('refStage');
+  const emptyRef = $('emptyRef');
+  const colorBadge = $('colorBadge'), typeBadge = $('typeBadge'), trackBadge = $('trackBadge');
+  const swatchMini = $('swatchMini'), colorText = $('colorText');
+  const cvSplash = $('cvSplash'), indexSplash = $('indexSplash');
+  const cvStatus = $('cvStatus'), camStatus = $('camStatus');
+  const camPanel = $('camPanel'), refPanel = $('refPanel'), swapBtn = $('swapBtn');
+  const fileInput = $('fileInput'), snapInput = $('snapInput');
+  const uploadBtn = $('uploadBtn'), snapRefBtn = $('snapRefBtn'), reUploadBtn = $('reUploadBtn');
+  const trackBtn = $('trackBtn'), liveBtn = $('liveBtn'), freezeBtn = $('freezeBtn');
+  const freezeLbl = $('freezeLbl'), clearBtn = $('clearBtn');
+  const slider = $('slider'), sliderVal = $('sliderVal'), sliderLbl = $('sliderLbl');
+  const toast = $('toast');
+
+  const state = {
+    cvReady: false, cameraReady: false, refLoaded: false,
+    liveMode: true, frozen: false, swapped: false,
+    trackMode: false, trackReady: false, indexing: false,
+    refW: 0, refH: 0, rx: 0, ry: 0, rs: 1,
+    refBufImageData: null, refBufW: 0, refBufH: 0,
+    refSrcImage: null, // HTMLImageElement, kept for re-indexing
+    // OpenCV reference data
+    refMat: null, refKp: null, refDesc: null, refMatW: 0, refMatH: 0,
+    // Tracking smoothing
+    lastH: null, lostFrames: 0,
+    // Match-mode
+    lastOverlayColor: null, lastOverlayTime: 0,
+    detection: null,
+  };
+
+  let toastTimer = null;
+  function showToast(msg, dur = 2000) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), dur);
+  }
+
+  function markCvReady() {
+    if (state.cvReady) return;
+    if (typeof cv === 'undefined' || !cv.Mat) return;
+    state.cvReady = true;
+    cvSplash.classList.add('gone');
+    setTimeout(() => cvSplash.style.display = 'none', 400);
+    cvStatus.textContent = 'vision ready';
+    cvStatus.className = 'ok';
+    if (state.refLoaded) trackBtn.disabled = false;
+  }
+  window.addEventListener('opencv-ready', markCvReady);
+  window.addEventListener('opencv-script-loaded', () => {
+    let tries = 0;
+    const t = setInterval(() => {
+      if (state.cvReady) { clearInterval(t); return; }
+      if (typeof cv !== 'undefined' && cv.Mat) { clearInterval(t); markCvReady(); }
+      else if (++tries > 60) clearInterval(t);
+    }, 200);
+  });
+  window.addEventListener('opencv-failed', () => {
+    cvStatus.textContent = 'vision unavailable';
+    cvStatus.className = 'warn';
+    cvSplash.querySelector('div:last-child').textContent = 'Vision engine failed — basic mode';
+    cvSplash.querySelector('.spinner').style.display = 'none';
+    setTimeout(() => {
+      cvSplash.classList.add('gone');
+      setTimeout(() => cvSplash.style.display = 'none', 400);
+    }, 1500);
+  });
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+      camVideo.srcObject = stream;
+      await new Promise(res => {
+        if (camVideo.readyState >= 2) return res();
+        camVideo.onloadedmetadata = () => res();
+      });
+      state.cameraReady = true;
+      camStatus.textContent = 'camera ready';
+      camStatus.className = 'ok';
+      camOverlay.width = camVideo.videoWidth;
+      camOverlay.height = camVideo.videoHeight;
+      requestAnimationFrame(processLoop);
+    } catch (e) {
+      console.error(e);
+      camStatus.textContent = 'camera blocked';
+      camStatus.className = 'warn';
+      showToast('Camera access denied — check permissions');
+    }
+  }
+
+  function loadReferenceFromFile(file) {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      refImg.src = url;
+      refImg.style.display = 'block';
+      emptyRef.style.display = 'none';
+      swapBtn.style.display = 'block';
+      state.refW = img.naturalWidth;
+      state.refH = img.naturalHeight;
+      refImg.width = state.refW;
+      refImg.height = state.refH;
+      refOverlay.width = state.refW;
+      refOverlay.height = state.refH;
+      state.refSrcImage = img;
+      buildRefBuffer(img);
+      // Dispose old tracking data
+      disposeTrackingData();
+      state.refLoaded = true;
+      if (state.cvReady) trackBtn.disabled = false;
+      fitReferenceToStage();
+      showToast('Reference loaded · pinch to zoom');
+    };
+    img.src = url;
+  }
+
+  // Downscaled buffer for color matching
+  const refBufCanvas = document.createElement('canvas');
+  const refBufCtx = refBufCanvas.getContext('2d', { willReadFrequently: true });
+  const MAX_BUF_DIM = 500;
+  function buildRefBuffer(img) {
+    const ratio = img.naturalWidth / img.naturalHeight;
+    let bw, bh;
+    if (img.naturalWidth > img.naturalHeight) {
+      bw = Math.min(MAX_BUF_DIM, img.naturalWidth);
+      bh = Math.round(bw / ratio);
+    } else {
+      bh = Math.min(MAX_BUF_DIM, img.naturalHeight);
+      bw = Math.round(bh * ratio);
+    }
+    refBufCanvas.width = bw;
+    refBufCanvas.height = bh;
+    refBufCtx.drawImage(img, 0, 0, bw, bh);
+    state.refBufImageData = refBufCtx.getImageData(0, 0, bw, bh);
+    state.refBufW = bw;
+    state.refBufH = bh;
+  }
+
+  function fitReferenceToStage() {
+    const sw = refStage.clientWidth, sh = refStage.clientHeight;
+    if (!sw || !sh || !state.refW) return;
+    const scale = Math.min(sw / state.refW, sh / state.refH);
+    state.rs = scale;
+    state.rx = (sw - state.refW * scale) / 2;
+    state.ry = (sh - state.refH * scale) / 2;
+    applyRefTransform();
+  }
+  function applyRefTransform() {
+    const t = `translate(${state.rx}px, ${state.ry}px) scale(${state.rs})`;
+    refImg.style.transform = t;
+    refOverlay.style.transform = t;
+  }
+
+  // Pinch-zoom + pan
+  const pointers = new Map();
+  let pinchStart = null;
+  refStage.addEventListener('pointerdown', (e) => {
+    if (!state.refLoaded) return;
+    refStage.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const pts = [...pointers.values()];
+      pinchStart = {
+        dist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
+        cx: (pts[0].x + pts[1].x) / 2,
+        cy: (pts[0].y + pts[1].y) / 2,
+        rs: state.rs, rx: state.rx, ry: state.ry,
+      };
+    }
+  });
+  refStage.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    const prev = pointers.get(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      state.rx += e.clientX - prev.x;
+      state.ry += e.clientY - prev.y;
+      applyRefTransform();
+    } else if (pointers.size === 2 && pinchStart) {
+      const pts = [...pointers.values()];
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      const newScale = Math.max(0.2, Math.min(8, pinchStart.rs * (dist / pinchStart.dist)));
+      const rect = refStage.getBoundingClientRect();
+      const cx = pinchStart.cx - rect.left, cy = pinchStart.cy - rect.top;
+      const ratio = newScale / pinchStart.rs;
+      state.rs = newScale;
+      state.rx = cx - (cx - pinchStart.rx) * ratio;
+      state.ry = cy - (cy - pinchStart.ry) * ratio;
+      applyRefTransform();
+    }
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+  }
+  refStage.addEventListener('pointerup', endPointer);
+  refStage.addEventListener('pointercancel', endPointer);
+  refStage.addEventListener('pointerleave', endPointer);
+  refStage.addEventListener('wheel', (e) => {
+    if (!state.refLoaded) return;
+    e.preventDefault();
+    const rect = refStage.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newScale = Math.max(0.2, Math.min(8, state.rs * factor));
+    const ratio = newScale / state.rs;
+    state.rs = newScale;
+    state.rx = cx - (cx - state.rx) * ratio;
+    state.ry = cy - (cy - state.ry) * ratio;
+    applyRefTransform();
+  }, { passive: false });
+  let lastTap = 0;
+  refStage.addEventListener('pointerup', () => {
+    const now = Date.now();
+    if (now - lastTap < 300 && state.refLoaded) fitReferenceToStage();
+    lastTap = now;
+  });
+
+  // ===== Reference indexing for tracking =====
+  function disposeTrackingData() {
+    try { state.refMat && state.refMat.delete(); } catch(e){}
+    try { state.refKp && state.refKp.delete(); } catch(e){}
+    try { state.refDesc && state.refDesc.delete(); } catch(e){}
+    try { state.lastH && state.lastH.delete(); } catch(e){}
+    state.refMat = null;
+    state.refKp = null;
+    state.refDesc = null;
+    state.lastH = null;
+    state.trackReady = false;
+    state.lostFrames = 0;
+  }
+
+  function indexReference() {
+    if (!state.cvReady || !state.refSrcImage) return false;
+    if (state.indexing) return false;
+    state.indexing = true;
+    indexSplash.style.display = 'flex';
+    indexSplash.classList.remove('gone');
+
+    // Defer to next tick so the splash renders
+    return new Promise(resolve => {
+      setTimeout(() => {
+        try {
+          const img = state.refSrcImage;
+          // Downscale for feature extraction
+          const targetW = 640;
+          const ratio = img.naturalWidth / img.naturalHeight;
+          let mw, mh;
+          if (img.naturalWidth >= img.naturalHeight) {
+            mw = Math.min(targetW, img.naturalWidth);
+            mh = Math.round(mw / ratio);
+          } else {
+            mh = Math.min(targetW, img.naturalHeight);
+            mw = Math.round(mh * ratio);
+          }
+          const c = document.createElement('canvas');
+          c.width = mw; c.height = mh;
+          c.getContext('2d').drawImage(img, 0, 0, mw, mh);
+
+          const refColor = cv.imread(c);
+          const gray = new cv.Mat();
+          cv.cvtColor(refColor, gray, cv.COLOR_RGBA2GRAY);
+
+          const orb = new cv.ORB(800);
+          const kp = new cv.KeyPointVector();
+          const desc = new cv.Mat();
+          orb.detect(gray, kp);
+          orb.compute(gray, kp, desc);
+
+          state.refMat = refColor; // keep colored version for warping
+          state.refKp = kp;
+          state.refDesc = desc;
+          state.refMatW = mw;
+          state.refMatH = mh;
+
+          gray.delete();
+          orb.delete();
+
+          state.trackReady = true;
+          showToast(`Indexed · ${kp.size()} keypoints`);
+        } catch (err) {
+          console.error('Indexing error:', err);
+          showToast('Indexing failed');
+        } finally {
+          state.indexing = false;
+          indexSplash.classList.add('gone');
+          setTimeout(() => indexSplash.style.display = 'none', 400);
+          resolve(state.trackReady);
+        }
+      }, 50);
+    });
+  }
+
+  // ===== Frame processing =====
+  const PROC_W_MATCH = 320;
+  const PROC_W_TRACK = 320;
+  const procCanvas = document.createElement('canvas');
+  const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+  let lastProcessTime = 0;
+
+  function processLoop() {
+    if (state.cameraReady) {
+      const interval = state.trackMode ? 130 : 80; // tracking is heavier
+      const now = performance.now();
+      if (now - lastProcessTime >= interval) {
+        lastProcessTime = now;
+        try { processFrame(); }
+        catch (err) { console.error('Frame error:', err); }
+      }
+    }
+    requestAnimationFrame(processLoop);
+  }
+
+  function processFrame() {
+    if (state.frozen) return;
+    const vw = camVideo.videoWidth, vh = camVideo.videoHeight;
+    if (!vw || !vh) return;
+
+    if (state.trackMode && state.trackReady) {
+      processFrameTrack(vw, vh);
+    } else {
+      processFrameMatch(vw, vh);
+    }
+  }
+
+  // ===== MATCH MODE =====
+  function processFrameMatch(vw, vh) {
+    const procW = PROC_W_MATCH;
+    const procH = Math.round(procW * vh / vw);
+    procCanvas.width = procW;
+    procCanvas.height = procH;
+    procCtx.drawImage(camVideo, 0, 0, procW, procH);
+
+    let detection = null;
+    if (state.cvReady) detection = detectPiece(procCanvas);
+    else detection = sampleCenterFallback(procCanvas);
+    state.detection = detection;
+
+    drawCameraOverlayMatch(detection, vw, vh, procW, procH);
+    updateBadgesMatch(detection);
+    trackBadge.classList.add('hidden');
+
+    if (state.liveMode && state.refLoaded && detection && detection.color) {
+      maybeUpdateRefOverlay(detection.color);
+    }
+  }
+
+  function detectPiece(canvas) {
+    let src = cv.imread(canvas);
+    let gray = new cv.Mat(), blur = new cv.Mat(), edges = new cv.Mat(), dilated = new cv.Mat();
+    let contours = new cv.MatVector(), hierarchy = new cv.Mat();
+    const result = { contour: null, color: null, type: null };
+
+    try {
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
+      cv.Canny(blur, edges, 40, 120);
+      const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+      cv.dilate(edges, dilated, kernel);
+      cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      kernel.delete();
+
+      const cx = canvas.width / 2, cy = canvas.height / 2;
+      const minArea = canvas.width * canvas.height * 0.01;
+      const maxArea = canvas.width * canvas.height * 0.6;
+      let best = null, bestScore = Infinity;
+      for (let i = 0; i < contours.size(); i++) {
+        const cnt = contours.get(i);
+        const area = cv.contourArea(cnt);
+        if (area < minArea || area > maxArea) { cnt.delete(); continue; }
+        const rect = cv.boundingRect(cnt);
+        const rcx = rect.x + rect.width / 2, rcy = rect.y + rect.height / 2;
+        const score = Math.hypot(rcx - cx, rcy - cy) - Math.sqrt(area) * 0.5;
+        if (score < bestScore) {
+          if (best) best.delete();
+          best = cnt;
+          bestScore = score;
+        } else { cnt.delete(); }
+      }
+
+      if (best) {
+        const rect = cv.boundingRect(best);
+        const pts = [];
+        for (let i = 0; i < best.rows; i++) {
+          pts.push({ x: best.data32S[i * 2], y: best.data32S[i * 2 + 1] });
+        }
+        result.contour = { rect, points: pts };
+        let mask = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC1);
+        let cntVec = new cv.MatVector();
+        cntVec.push_back(best);
+        cv.drawContours(mask, cntVec, 0, new cv.Scalar(255), -1);
+        const ek = cv.Mat.ones(3, 3, cv.CV_8U);
+        cv.erode(mask, mask, ek);
+        ek.delete();
+        const m = cv.mean(src, mask);
+        result.color = { r: Math.round(m[0]), g: Math.round(m[1]), b: Math.round(m[2]) };
+        mask.delete();
+        cntVec.delete();
+        result.type = classifyPiece(best, rect);
+        best.delete();
+      }
+    } finally {
+      src.delete(); gray.delete(); blur.delete();
+      edges.delete(); dilated.delete();
+      contours.delete(); hierarchy.delete();
+    }
+    return result;
+  }
+
+  function classifyPiece(contour, rect) {
+    const tol = Math.max(4, Math.min(rect.width, rect.height) * 0.06);
+    let t = 0, b = 0, l = 0, r = 0;
+    const total = contour.rows;
+    for (let i = 0; i < total; i++) {
+      const x = contour.data32S[i * 2], y = contour.data32S[i * 2 + 1];
+      if (Math.abs(y - rect.y) < tol) t++;
+      if (Math.abs(y - (rect.y + rect.height)) < tol) b++;
+      if (Math.abs(x - rect.x) < tol) l++;
+      if (Math.abs(x - (rect.x + rect.width)) < tol) r++;
+    }
+    const minX = rect.width * 0.18, minY = rect.height * 0.18;
+    let flat = 0;
+    if (t > minX) flat++;
+    if (b > minX) flat++;
+    if (l > minY) flat++;
+    if (r > minY) flat++;
+    if (flat >= 2) return 'corner';
+    if (flat === 1) return 'edge';
+    return 'middle';
+  }
+
+  function sampleCenterFallback(canvas) {
+    const ctx = canvas.getContext('2d');
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const half = 12;
+    const data = ctx.getImageData(cx - half, cy - half, half * 2, half * 2).data;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+    }
+    return {
+      contour: null,
+      color: { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) },
+      type: null,
+    };
+  }
+
+  function drawCameraOverlayMatch(detection, vw, vh, procW, procH) {
+    if (camOverlay.width !== vw) camOverlay.width = vw;
+    if (camOverlay.height !== vh) camOverlay.height = vh;
+    const ctx = camOverlay.getContext('2d');
+    ctx.clearRect(0, 0, vw, vh);
+
+    // Crosshair
+    ctx.strokeStyle = 'rgba(232, 160, 74, 0.85)';
+    ctx.lineWidth = Math.max(1.5, vw * 0.0015);
+    ctx.fillStyle = 'rgba(232, 160, 74, 0.15)';
+    const cx = vw / 2, cy = vh / 2;
+    const r = Math.min(vw, vh) * 0.025;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 2.5, cy); ctx.lineTo(cx - r * 1.2, cy);
+    ctx.moveTo(cx + r * 1.2, cy); ctx.lineTo(cx + r * 2.5, cy);
+    ctx.moveTo(cx, cy - r * 2.5); ctx.lineTo(cx, cy - r * 1.2);
+    ctx.moveTo(cx, cy + r * 1.2); ctx.lineTo(cx, cy + r * 2.5);
+    ctx.stroke();
+
+    if (detection && detection.contour) {
+      const { points, rect } = detection.contour;
+      const sx = vw / procW, sy = vh / procH;
+      ctx.fillStyle = 'rgba(232, 160, 74, 0.12)';
+      ctx.strokeStyle = 'rgba(232, 160, 74, 0.95)';
+      ctx.lineWidth = Math.max(2, vw * 0.0025);
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i++) {
+        const px = points[i].x * sx, py = points[i].y * sy;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
+  }
+
+  function updateBadgesMatch(detection) {
+    if (detection && detection.color) {
+      const { r, g, b } = detection.color;
+      swatchMini.style.background = `rgb(${r},${g},${b})`;
+      colorText.textContent = `rgb ${r} ${g} ${b}`;
+      colorBadge.classList.remove('hidden');
+    } else {
+      colorBadge.classList.add('hidden');
+    }
+    if (detection && detection.type) {
+      const labels = { corner: '◢ corner', edge: '▭ edge', middle: '✦ middle' };
+      typeBadge.textContent = labels[detection.type];
+      typeBadge.classList.remove('hidden');
+    } else {
+      typeBadge.classList.add('hidden');
+    }
+  }
+
+  function maybeUpdateRefOverlay(color) {
+    const now = performance.now();
+    const last = state.lastOverlayColor;
+    let changed = !last;
+    if (last) {
+      const d = Math.hypot(color.r - last.r, color.g - last.g, color.b - last.b);
+      changed = d > 12;
+    }
+    if (changed && now - state.lastOverlayTime > 600) {
+      state.lastOverlayColor = color;
+      state.lastOverlayTime = now;
+      drawRefOverlay(color);
+    }
+  }
+
+  function drawRefOverlay(color) {
+    if (!state.refBufImageData) return;
+    const tol = parseInt(slider.value, 10);
+    const tolSq = tol * tol * 3;
+    const { r: tr, g: tg, b: tb } = color;
+    const buf = state.refBufImageData;
+    const bw = state.refBufW, bh = state.refBufH;
+    const out = refBufCtx.createImageData(bw, bh);
+    const src = buf.data, dst = out.data;
+    for (let i = 0; i < src.length; i += 4) {
+      const dr = src[i] - tr, dg = src[i + 1] - tg, db = src[i + 2] - tb;
+      if (dr * dr + dg * dg + db * db <= tolSq) {
+        dst[i + 3] = 0;
+      } else {
+        dst[i] = 8; dst[i + 1] = 7; dst[i + 2] = 5;
+        dst[i + 3] = 175;
+      }
+    }
+    refBufCtx.putImageData(out, 0, 0);
+    refOverlay.width = state.refW;
+    refOverlay.height = state.refH;
+    const ctx = refOverlay.getContext('2d');
+    ctx.clearRect(0, 0, state.refW, state.refH);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(refBufCanvas, 0, 0, state.refW, state.refH);
+    refOverlay.style.display = 'block';
+  }
+  function clearRefOverlay() {
+    refOverlay.style.display = 'none';
+    state.lastOverlayColor = null;
+  }
+
+  // ===== TRACK MODE (homography / AR overlay) =====
+  function processFrameTrack(vw, vh) {
+    const procW = PROC_W_TRACK;
+    const procH = Math.round(procW * vh / vw);
+    procCanvas.width = procW;
+    procCanvas.height = procH;
+    procCtx.drawImage(camVideo, 0, 0, procW, procH);
+
+    let src = null, gray = null, kp = null, desc = null, orb = null;
+    let bf = null, knn = null, srcMat = null, dstMat = null, mask = null, H = null;
+    let goodMatches = 0, inliers = 0, homography = null;
+
+    try {
+      src = cv.imread(procCanvas);
+      gray = new cv.Mat();
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+      orb = new cv.ORB(500);
+      kp = new cv.KeyPointVector();
+      desc = new cv.Mat();
+      orb.detect(gray, kp);
+      orb.compute(gray, kp, desc);
+
+      if (desc.rows >= 8 && state.refDesc && state.refDesc.rows >= 8) {
+        bf = new cv.BFMatcher(cv.NORM_HAMMING, false);
+        knn = new cv.DMatchVectorVector();
+        bf.knnMatch(state.refDesc, desc, knn, 2);
+
+        // Lowe's ratio test
+        const goodSrc = [], goodDst = [];
+        for (let i = 0; i < knn.size(); i++) {
+          const v = knn.get(i);
+          if (v.size() < 2) continue;
+          const m = v.get(0), n = v.get(1);
+          if (m.distance < 0.75 * n.distance) {
+            const rk = state.refKp.get(m.queryIdx);
+            const ck = kp.get(m.trainIdx);
+            goodSrc.push(rk.pt.x, rk.pt.y);
+            goodDst.push(ck.pt.x, ck.pt.y);
+          }
+        }
+        goodMatches = goodSrc.length / 2;
+
+        if (goodMatches >= 8) {
+          srcMat = cv.matFromArray(goodMatches, 1, cv.CV_32FC2, goodSrc);
+          dstMat = cv.matFromArray(goodMatches, 1, cv.CV_32FC2, goodDst);
+          mask = new cv.Mat();
+          H = cv.findHomography(srcMat, dstMat, cv.RANSAC, 4.0, mask);
+          if (H && !H.empty()) {
+            for (let i = 0; i < mask.rows; i++) if (mask.data[i]) inliers++;
+            if (inliers >= 12) {
+              homography = H;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Track frame error:', err);
+    }
+
+    if (homography) {
+      state.lostFrames = 0;
+      // Smooth homography
+      if (state.lastH && !state.lastH.empty()) {
+        // Lerp: H_new = 0.5 * H_old + 0.5 * H_curr
+        const blended = new cv.Mat();
+        cv.addWeighted(state.lastH, 0.5, homography, 0.5, 0, blended);
+        state.lastH.delete();
+        state.lastH = blended;
+      } else {
+        state.lastH = homography.clone();
+      }
+      drawARTrackOverlay(state.lastH, vw, vh, procW, procH, inliers);
+      updateTrackBadge('locked', inliers);
+    } else {
+      state.lostFrames++;
+      if (state.lostFrames > 10 && state.lastH) {
+        state.lastH.delete();
+        state.lastH = null;
+      }
+      // Keep showing last known overlay briefly while we wait for re-lock
+      if (state.lastH) {
+        drawARTrackOverlay(state.lastH, vw, vh, procW, procH, 0);
+        updateTrackBadge('searching', 0);
+      } else {
+        clearCamOverlay(vw, vh);
+        drawCrosshair(vw, vh);
+        updateTrackBadge('lost', 0);
+      }
+    }
+
+    // Cleanup
+    try { src && src.delete(); } catch(e){}
+    try { gray && gray.delete(); } catch(e){}
+    try { kp && kp.delete(); } catch(e){}
+    try { desc && desc.delete(); } catch(e){}
+    try { orb && orb.delete(); } catch(e){}
+    try { bf && bf.delete(); } catch(e){}
+    try { knn && knn.delete(); } catch(e){}
+    try { srcMat && srcMat.delete(); } catch(e){}
+    try { dstMat && dstMat.delete(); } catch(e){}
+    try { mask && mask.delete(); } catch(e){}
+    if (homography && homography !== state.lastH) {
+      try { homography.delete(); } catch(e){}
+    }
+    // Hide match-mode badges
+    colorBadge.classList.add('hidden');
+    typeBadge.classList.add('hidden');
+  }
+
+  function clearCamOverlay(vw, vh) {
+    if (camOverlay.width !== vw) camOverlay.width = vw;
+    if (camOverlay.height !== vh) camOverlay.height = vh;
+    camOverlay.getContext('2d').clearRect(0, 0, vw, vh);
+  }
+
+  function drawCrosshair(vw, vh) {
+    const ctx = camOverlay.getContext('2d');
+    ctx.strokeStyle = 'rgba(108, 174, 232, 0.7)';
+    ctx.lineWidth = Math.max(1.5, vw * 0.0015);
+    const cx = vw / 2, cy = vh / 2;
+    const r = Math.min(vw, vh) * 0.02;
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+    ctx.stroke();
+  }
+
+  function drawARTrackOverlay(H, vw, vh, procW, procH, inliers) {
+    if (!state.refMat) return;
+    if (camOverlay.width !== vw) camOverlay.width = vw;
+    if (camOverlay.height !== vh) camOverlay.height = vh;
+
+    // Scale homography from procW/procH to vw/vh
+    // H maps refMat coords -> proc coords. We need refMat -> camOverlay.
+    // S = scale matrix. H_scaled = S * H
+    const sx = vw / procW, sy = vh / procH;
+
+    // We'll warp refMat to a target the size of camOverlay
+    // Build scaling Mat
+    const scaleData = [sx, 0, 0,  0, sy, 0,  0, 0, 1];
+    const S = cv.matFromArray(3, 3, cv.CV_64F, scaleData);
+    const Hscaled = new cv.Mat();
+    cv.gemm(S, H, 1.0, new cv.Mat(), 0, Hscaled);
+    S.delete();
+
+    // Warp refMat (color) into a canvas-sized Mat
+    const warped = new cv.Mat();
+    const dsize = new cv.Size(vw, vh);
+    cv.warpPerspective(state.refMat, warped, Hscaled, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(0,0,0,0));
+
+    // Convert warped Mat to ImageData and draw
+    // cv.imshow needs a canvas with matching size
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = vw;
+    tmpCanvas.height = vh;
+    cv.imshow(tmpCanvas, warped);
+
+    const ctx = camOverlay.getContext('2d');
+    ctx.clearRect(0, 0, vw, vh);
+
+    // Draw warped reference at reduced opacity
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(tmpCanvas, 0, 0);
+    ctx.globalAlpha = 1.0;
+
+    // Outline the projected reference quad on top
+    const corners = projectCorners(Hscaled, state.refMatW, state.refMatH);
+    if (corners) {
+      ctx.strokeStyle = inliers > 0 ? 'rgba(108, 174, 232, 0.95)' : 'rgba(232, 160, 74, 0.7)';
+      ctx.lineWidth = Math.max(2, vw * 0.003);
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        if (i === 0) ctx.moveTo(corners[i].x, corners[i].y);
+        else ctx.lineTo(corners[i].x, corners[i].y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    Hscaled.delete();
+    warped.delete();
+
+    // Also highlight the camera region on the reference panel
+    drawRefRegionHighlight(H, procW, procH);
+  }
+
+  function projectCorners(H, w, h) {
+    // Project [0,0], [w,0], [w,h], [0,h] through H
+    const data = H.data64F;
+    const apply = (x, y) => {
+      const dx = data[0]*x + data[1]*y + data[2];
+      const dy = data[3]*x + data[4]*y + data[5];
+      const dz = data[6]*x + data[7]*y + data[8];
+      if (Math.abs(dz) < 1e-9) return null;
+      return { x: dx/dz, y: dy/dz };
+    };
+    const c = [apply(0,0), apply(w,0), apply(w,h), apply(0,h)];
+    if (c.some(p => !p)) return null;
+    return c;
+  }
+
+  // Highlight on the reference image where the camera is currently aimed
+  function drawRefRegionHighlight(H, procW, procH) {
+    // H maps refMat coords -> proc coords
+    // We need the inverse: proc corners -> refMat coords
+    const Hinv = new cv.Mat();
+    try {
+      cv.invert(H, Hinv);
+      const data = Hinv.data64F;
+      const apply = (x, y) => {
+        const dx = data[0]*x + data[1]*y + data[2];
+        const dy = data[3]*x + data[4]*y + data[5];
+        const dz = data[6]*x + data[7]*y + data[8];
+        return { x: dx/dz, y: dy/dz };
+      };
+      // Corners of camera frame in proc coords
+      const camCorners = [apply(0,0), apply(procW,0), apply(procW,procH), apply(0,procH)];
+
+      // Map from refMat coords -> refOverlay coords (which is at refW x refH)
+      const mx = state.refW / state.refMatW;
+      const my = state.refH / state.refMatH;
+
+      refOverlay.width = state.refW;
+      refOverlay.height = state.refH;
+      const rctx = refOverlay.getContext('2d');
+      rctx.clearRect(0, 0, state.refW, state.refH);
+
+      // Dim everything outside the visible region
+      rctx.fillStyle = 'rgba(8, 7, 5, 0.55)';
+      rctx.fillRect(0, 0, state.refW, state.refH);
+
+      // Punch out the visible quad
+      rctx.globalCompositeOperation = 'destination-out';
+      rctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const c = camCorners[i];
+        if (i === 0) rctx.moveTo(c.x * mx, c.y * my);
+        else rctx.lineTo(c.x * mx, c.y * my);
+      }
+      rctx.closePath();
+      rctx.fill();
+      rctx.globalCompositeOperation = 'source-over';
+
+      // Outline
+      rctx.strokeStyle = 'rgba(108, 174, 232, 0.95)';
+      rctx.lineWidth = Math.max(2, state.refW * 0.005);
+      rctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const c = camCorners[i];
+        if (i === 0) rctx.moveTo(c.x * mx, c.y * my);
+        else rctx.lineTo(c.x * mx, c.y * my);
+      }
+      rctx.closePath();
+      rctx.stroke();
+
+      refOverlay.style.display = 'block';
+    } catch (err) {
+      // ignore
+    } finally {
+      Hinv.delete();
+    }
+  }
+
+  function updateTrackBadge(status, inliers) {
+    trackBadge.classList.remove('hidden', 'lost');
+    if (status === 'locked') {
+      trackBadge.textContent = `◉ tracking · ${inliers} pts`;
+    } else if (status === 'searching') {
+      trackBadge.textContent = '◌ searching…';
+    } else {
+      trackBadge.textContent = '✕ no match';
+      trackBadge.classList.add('lost');
+    }
+  }
+
+  // ===== Wire up controls =====
+  uploadBtn.addEventListener('click', () => fileInput.click());
+  reUploadBtn.addEventListener('click', () => fileInput.click());
+  snapRefBtn.addEventListener('click', () => snapInput.click());
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) loadReferenceFromFile(f);
+    fileInput.value = '';
+  });
+  snapInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) loadReferenceFromFile(f);
+    snapInput.value = '';
+  });
+
+  liveBtn.addEventListener('click', () => {
+    if (state.trackMode) {
+      // disable track mode first
+      setTrackMode(false);
+    }
+    state.liveMode = !state.liveMode;
+    liveBtn.classList.toggle('active', state.liveMode);
+    showToast(state.liveMode ? 'Live match on' : 'Live match paused');
+  });
+
+  trackBtn.addEventListener('click', async () => {
+    if (!state.cvReady) { showToast('Vision still loading'); return; }
+    if (!state.refLoaded) { showToast('Add a reference image first'); return; }
+    if (state.trackMode) {
+      setTrackMode(false);
+      return;
+    }
+    if (!state.trackReady) {
+      const ok = await indexReference();
+      if (!ok) return;
+    }
+    setTrackMode(true);
+  });
+
+  function setTrackMode(on) {
+    state.trackMode = on;
+    trackBtn.classList.toggle('track-active', on);
+    if (on) {
+      // Hide match overlay
+      clearRefOverlay();
+      sliderLbl.textContent = 'Range';
+      slider.disabled = true;
+      slider.style.opacity = 0.4;
+      showToast('AR tracking on · aim at puzzle');
+    } else {
+      // Hide track overlay
+      const ctx = camOverlay.getContext('2d');
+      ctx && ctx.clearRect(0, 0, camOverlay.width, camOverlay.height);
+      refOverlay.style.display = 'none';
+      trackBadge.classList.add('hidden');
+      if (state.lastH) { try { state.lastH.delete(); } catch(e){} state.lastH = null; }
+      slider.disabled = false;
+      slider.style.opacity = 1;
+      showToast('AR tracking off');
+    }
+  }
+
+  slider.addEventListener('input', () => {
+    sliderVal.textContent = slider.value;
+    if (!state.trackMode && state.lastOverlayColor && state.refLoaded) {
+      drawRefOverlay(state.lastOverlayColor);
+    }
+  });
+
+  freezeBtn.addEventListener('click', () => {
+    if (state.frozen) {
+      camFrozen.style.display = 'none';
+      camVideo.style.display = '';
+      state.frozen = false;
+      freezeLbl.textContent = 'Freeze';
+      freezeBtn.classList.remove('active');
+    } else {
+      if (!camVideo.videoWidth) { showToast('Camera not ready yet'); return; }
+      camFrozen.width = camVideo.videoWidth;
+      camFrozen.height = camVideo.videoHeight;
+      camFrozen.getContext('2d').drawImage(camVideo, 0, 0);
+      camFrozen.style.display = 'block';
+      camVideo.style.display = 'none';
+      state.frozen = true;
+      freezeLbl.textContent = 'Live';
+      freezeBtn.classList.add('active');
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if (state.trackMode) {
+      const ctx = camOverlay.getContext('2d');
+      ctx && ctx.clearRect(0, 0, camOverlay.width, camOverlay.height);
+      refOverlay.style.display = 'none';
+      if (state.lastH) { try { state.lastH.delete(); } catch(e){} state.lastH = null; }
+    } else {
+      clearRefOverlay();
+    }
+  });
+
+  swapBtn.addEventListener('click', () => {
+    state.swapped = !state.swapped;
+    if (state.swapped) {
+      camPanel.classList.remove('large'); camPanel.classList.add('small');
+      refPanel.classList.remove('small'); refPanel.classList.add('large');
+    } else {
+      camPanel.classList.remove('small'); camPanel.classList.add('large');
+      refPanel.classList.remove('large'); refPanel.classList.add('small');
+    }
+    requestAnimationFrame(() => state.refLoaded && fitReferenceToStage());
+  });
+
+  window.addEventListener('resize', () => {
+    if (state.refLoaded) requestAnimationFrame(fitReferenceToStage);
+  });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => state.refLoaded && fitReferenceToStage(), 300);
+  });
+
+  startCamera();
+  if (typeof cv !== 'undefined' && cv.Mat) markCvReady();
+})();
+</script>
+</body>
+</html>
